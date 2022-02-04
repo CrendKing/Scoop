@@ -465,7 +465,7 @@ function persist_data($manifest, $original_dir, $persist_dir) {
             if (Test-Path $target) {
                 # if there is also a source data, rename it (to keep a original backup)
                 if (Test-Path $source) {
-                    Move-Item -Force $source "$source.original"
+                    Remove-Item -Recurse -Force $source
                 }
                 # we don't have persist data in the store, move the source to target, then create link
             } elseif (Test-Path $source) {
