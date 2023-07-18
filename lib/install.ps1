@@ -354,6 +354,7 @@ function env_paths($manifest, $dir, $persist_dir, $arch) {
 }
 
 function env_add_path($manifest, $dir, $persist_dir, $global, $arch) {
+    return
     $path = env_paths $manifest $dir $persist_dir $arch
     if ($path) {
         if (get_config USE_ISOLATED_PATH) {
@@ -371,6 +372,7 @@ function env_add_path($manifest, $dir, $persist_dir, $global, $arch) {
 }
 
 function env_rm_path($manifest, $dir, $persist_dir, $global, $arch) {
+    return
     $path = env_paths $manifest $dir $persist_dir $arch
     if ($path) {
         Remove-Path -Path $path -Global:$global # TODO: Remove after forced isolating Scoop path
