@@ -307,6 +307,7 @@ function find_dir_or_subdir($path, $dir) {
 }
 
 function env_add_path($manifest, $dir, $global, $arch) {
+    return
     $env_add_path = arch_specific 'env_add_path' $manifest $arch
     $dir = $dir.TrimEnd('\')
     if ($env_add_path) {
@@ -319,6 +320,7 @@ function env_add_path($manifest, $dir, $global, $arch) {
 }
 
 function env_rm_path($manifest, $dir, $global, $arch) {
+    return
     $env_add_path = arch_specific 'env_add_path' $manifest $arch
     $dir = $dir.TrimEnd('\')
     if ($env_add_path) {
