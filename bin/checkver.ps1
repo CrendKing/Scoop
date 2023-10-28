@@ -368,7 +368,7 @@ while ($in_progress -gt 0) {
                     $ver = $matchesHashtable['version']
                 }
             } else {
-                next "couldn't match '$regexp' in $source"
+                error "couldn't match '$regexp' in $source"
                 continue
             }
         }
