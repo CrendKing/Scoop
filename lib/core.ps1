@@ -711,7 +711,7 @@ function Invoke-ExternalCommand {
         # The inner item '(?<![:\w])[/-]' matches a slash ('/') or a hyphen ('-') not preceded by a colon (':') or a word character ('\w')
         # so that it must be a command line switch, otherwise, it would be a path (e.g. 'C:/Program Files') or other word (e.g. 'some-arg')
         # ' (?=[/-])' matches a space followed by a slash ('/') or a hyphen ('-'), i.e. the space before a command line switch
-        $ArgumentList = $ArgumentList.ForEach({ $_ -replace '"' -split '(?<=(?<![:\w])[/-]\w+) | (?=[/-])' })
+        #$ArgumentList = $ArgumentList.ForEach({ $_ -replace '"' -split '(?<=(?<![:\w])[/-]\w+) | (?=[/-])' })
         # Use legacy argument escaping for commands having non-standard behavior with regard to argument passing.
         # `msiexec` requires some args like `TARGETDIR="C:\Program Files"`, which is non-standard, therefore we treat it as a legacy command.
         # NSIS installer's '/D' param may not work with the ArgumentList property, so we need to escape arguments manually.
