@@ -104,43 +104,7 @@ foreach ($curr_app in $apps) {
 
     $dl_failure = $false
 
-    if(Test-Aria2Enabled) {
-        Invoke-CachedAria2Download $app $version $manifest $architecture $cachedir $manifest.cookie $use_cache $curr_check_hash
-    } else {
-        foreach($url in script:url $manifest $architecture) {
-            try {
-                Invoke-CachedDownload $app $version $url $null $manifest.cookie $use_cache
-            } catch {
-                write-host -f darkred $_
-                error "URL $url is not valid"
-                error $(new_issue_msg $app $bucket 'download failed')
-                $dl_failure = $true
-                continue
-            }
-
-            if($curr_check_hash) {
-                $manifest_hash = hash_for_url $manifest $url $architecture
-                $cached = cache_path $app $version $url
-                $ok, $err = check_hash $cached $manifest_hash (show_app $app $bucket)
-
-                if(!$ok) {
-                    error $err
-                    if(test-path $cached) {
-                        # rm cached file
-                        Remove-Item -force $cached
-                    }
-                    if ($url -like '*sourceforge.net*') {
-                        warn 'SourceForge.net is known for causing hash validation fails. Please try again before opening a ticket.'
-                    }
-                    error (new_issue_msg $app $bucket "hash check failed")
-                    $dl_failure = $true
-                    continue
-                }
-            } else {
-                info "Skipping hash verification."
-            }
-        }
-    }
+    Invoke-CachedCurlDownload $app $version $manifest $architecture $cachedir $manifest.cookie $use_cache $curr_check_hash
 
     if (!$dl_failure) {
         success "'$app' ($version) was downloaded successfully!"

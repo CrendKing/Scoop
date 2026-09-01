@@ -454,7 +454,7 @@ function Get-HelperPath {
     [OutputType([String])]
     param(
         [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
-        [ValidateSet('Git', '7zip', 'Lessmsi', 'Innounp', 'Dark', 'Aria2')]
+        [ValidateSet('Git', '7zip', 'Lessmsi', 'Innounp', 'Dark', 'Curl')]
         [String]
         $Helper
     )
@@ -485,7 +485,7 @@ function Get-HelperPath {
                     $HelperPath = Get-AppFilePath 'wixtoolset' 'wix.exe'
                 }
             }
-            'Aria2' { $HelperPath = Get-AppFilePath 'aria2' 'aria2c.exe' }
+            'Curl' { $HelperPath = Get-AppFilePath 'curl' 'bin\curl.exe' }
         }
 
         return $HelperPath
@@ -532,7 +532,7 @@ function Test-HelperInstalled {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
-        [ValidateSet('7zip', 'Lessmsi', 'Innounp', 'Dark', 'Aria2')]
+        [ValidateSet('7zip', 'Lessmsi', 'Innounp', 'Dark', 'Curl')]
         [String]
         $Helper
     )

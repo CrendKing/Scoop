@@ -13,38 +13,7 @@ function Invoke-ScoopDownload ($app, $version, $manifest, $bucket, $architecture
     $cookies = $manifest.cookie
 
     # download first
-    if (Test-Aria2Enabled) {
-        Invoke-CachedAria2Download $app $version $manifest $architecture $dir $cookies $use_cache $check_hash
-    } else {
-        foreach ($url in $urls) {
-            $fname = url_filename $url
-
-            try {
-                Invoke-CachedDownload $app $version $url "$dir\$fname" $cookies $use_cache
-            } catch {
-                Write-Host -ForegroundColor DarkRed $_
-                error "URL $url is not valid"
-                abort $(new_issue_msg $app $bucket 'download failed')
-            }
-
-            if ($check_hash) {
-                $manifest_hash = hash_for_url $manifest $url $architecture
-                $ok, $err = check_hash "$dir\$fname" $manifest_hash $(show_app $app $bucket)
-                if (!$ok) {
-                    error $err
-                    $cached = cache_path $app $version $url
-                    if (Test-Path $cached) {
-                        # rm cached file
-                        Remove-Item -Force $cached
-                    }
-                    if ($url.Contains('sourceforge.net')) {
-                        Write-Host -ForegroundColor Yellow 'SourceForge.net is known for causing hash validation fails. Please try again before opening a ticket.'
-                    }
-                    abort $(new_issue_msg $app $bucket 'hash check failed')
-                }
-            }
-        }
-    }
+    Invoke-CachedCurlDownload $app $version $manifest $architecture $dir $cookies $use_cache $check_hash
 
     return $urls.ForEach({ url_filename $_ })
 }
@@ -257,53 +226,7 @@ function Write-DownloadProgress ($read, $total, $url) {
     [console]::SetCursorPosition($left, $top)
 }
 
-## Aria2 downloader
-
-function Test-Aria2Enabled {
-    return (Test-HelperInstalled -Helper Aria2) -and (get_config 'aria2-enabled' $true)
-}
-
-function aria_exit_code($exitcode) {
-    $codes = @{
-        0  = 'All downloads were successful'
-        1  = 'An unknown error occurred'
-        2  = 'Timeout'
-        3  = 'Resource was not found'
-        4  = 'Aria2 saw the specified number of "resource not found" error. See --max-file-not-found option'
-        5  = 'Download aborted because download speed was too slow. See --lowest-speed-limit option'
-        6  = 'Network problem occurred.'
-        7  = 'There were unfinished downloads. This error is only reported if all finished downloads were successful and there were unfinished downloads in a queue when aria2 exited by pressing Ctrl-C by an user or sending TERM or INT signal'
-        8  = 'Remote server did not support resume when resume was required to complete download'
-        9  = 'There was not enough disk space available'
-        10 = 'Piece length was different from one in .aria2 control file. See --allow-piece-length-change option'
-        11 = 'Aria2 was downloading same file at that moment'
-        12 = 'Aria2 was downloading same info hash torrent at that moment'
-        13 = 'File already existed. See --allow-overwrite option'
-        14 = 'Renaming file failed. See --auto-file-renaming option'
-        15 = 'Aria2 could not open existing file'
-        16 = 'Aria2 could not create new file or truncate existing file'
-        17 = 'File I/O error occurred'
-        18 = 'Aria2 could not create directory'
-        19 = 'Name resolution failed'
-        20 = 'Aria2 could not parse Metalink document'
-        21 = 'FTP command failed'
-        22 = 'HTTP response header was bad or unexpected'
-        23 = 'Too many redirects occurred'
-        24 = 'HTTP authorization failed'
-        25 = 'Aria2 could not parse bencoded file (usually ".torrent" file)'
-        26 = '".torrent" file was corrupted or missing information that aria2 needed'
-        27 = 'Magnet URI was bad'
-        28 = 'Bad/unrecognized option was given or unexpected option argument was given'
-        29 = 'The remote server was unable to handle the request due to a temporary overloading or maintenance'
-        30 = 'Aria2 could not parse JSON-RPC request'
-        31 = 'Reserved. Not used'
-        32 = 'Checksum validation failed'
-    }
-    if ($null -eq $codes[$exitcode]) {
-        return 'An unknown error occurred'
-    }
-    return $codes[$exitcode]
-}
+## Curl downloader
 
 function get_filename_from_metalink($file) {
     $bytes = get_magic_bytes_pretty $file ''
@@ -330,57 +253,22 @@ function get_filename_from_metalink($file) {
     return $filename
 }
 
-function Invoke-CachedAria2Download ($app, $version, $manifest, $architecture, $dir, $cookies = $null, $use_cache = $true, $check_hash = $true) {
+function Invoke-CachedCurlDownload ($app, $version, $manifest, $architecture, $dir, $cookies = $null, $use_cache = $true, $check_hash = $true) {
     $data = @{}
     $urls = @(script:url $manifest $architecture)
 
-    # aria2 input file
+    # curl input file
     $urlstxt = Join-Path $cachedir "$app.txt"
     $urlstxt_content = ''
     $download_finished = $true
 
-    # aria2 options
     $options = @(
-        "--input-file='$urlstxt'"
-        "--user-agent='$(Get-UserAgent)'"
-        '--allow-overwrite=true'
-        '--auto-file-renaming=false'
-        "--retry-wait=$(get_config 'aria2-retry-wait' 2)"
-        "--split=$(get_config 'aria2-split' 5)"
-        "--max-connection-per-server=$(get_config 'aria2-max-connection-per-server' 5)"
-        "--min-split-size=$(get_config 'aria2-min-split-size' '5M')"
-        '--console-log-level=warn'
-        '--enable-color=false'
-        '--no-conf=true'
-        '--follow-metalink=true'
-        '--metalink-preferred-protocol=https'
-        '--min-tls-version=TLSv1.2'
-        "--stop-with-process=$PID"
-        '--continue'
-        '--summary-interval=0'
-        '--auto-save-interval=1'
+        "--config", $urlstxt
+        "--user-agent", "'$(Get-UserAgent)'"
     )
 
     if ($cookies) {
-        $options += "--header='Cookie: $(cookie_header $cookies)'"
-    }
-
-    $proxy = get_config PROXY
-    if ($proxy -ne 'none') {
-        if ([Net.Webrequest]::DefaultWebProxy.Address) {
-            $options += "--all-proxy='$([Net.Webrequest]::DefaultWebProxy.Address.Authority)'"
-        }
-        if ([Net.Webrequest]::DefaultWebProxy.Credentials.UserName) {
-            $options += "--all-proxy-user='$([Net.Webrequest]::DefaultWebProxy.Credentials.UserName)'"
-        }
-        if ([Net.Webrequest]::DefaultWebProxy.Credentials.Password) {
-            $options += "--all-proxy-passwd='$([Net.Webrequest]::DefaultWebProxy.Credentials.Password)'"
-        }
-    }
-
-    $more_options = get_config 'aria2-options'
-    if ($more_options) {
-        $options += $more_options
+        $options += "--cookie", $cookies
     }
 
     foreach ($url in $urls) {
@@ -390,46 +278,41 @@ function Invoke-CachedAria2Download ($app, $version, $manifest, $architecture, $
             'source'    = cache_path $app $version $url
         }
 
-        if ((Test-Path $data.$url.source) -and -not((Test-Path "$($data.$url.source).aria2") -or (Test-Path $urlstxt)) -and $use_cache) {
-            Write-Host "Loading $([char]0x1b)[36m$(url_remote_filename $url)$([char]0x1b)[0m from cache."
-        } else {
-            $download_finished = $false
-            # create aria2 input file content
-            try {
-                $try_url = handle_special_urls $url
-            } catch {
-                if ($_.Exception.Response.StatusCode -eq 'Unauthorized') {
-                    warn 'Token might be misconfigured.'
-                }
+        $download_finished = $false
+        # create curl input file content
+        try {
+            $try_url = handle_special_urls $url
+        } catch {
+            if ($_.Exception.Response.StatusCode -eq 'Unauthorized') {
+                warn 'Token might be misconfigured.'
             }
-            $urlstxt_content += "$try_url`n"
-            if (!$url.Contains('sourceforge.net')) {
-                $urlstxt_content += "    referer=$(strip_filename $url)`n"
-            }
-            $urlstxt_content += "    dir=$cachedir`n"
-            $urlstxt_content += "    out=$($data.$url.cachename)`n"
         }
+        $urlstxt_content += "url = $try_url`n"
+        if (!$url.Contains('sourceforge.net')) {
+            $urlstxt_content += "referer = $(strip_filename $url)`n"
+        }
+        $urlstxt_content += "output = $cachedir\$($data.$url.cachename)`n"
     }
 
     if (-not($download_finished)) {
-        # write aria2 input file
+        # write curl input file
         if ($urlstxt_content -ne '') {
             ensure $cachedir | Out-Null
-            # Write aria2 input-file with UTF8NoBOM encoding
+            # Write curl input-file with UTF8NoBOM encoding
             $urlstxt_content | Out-UTF8File -FilePath $urlstxt
         }
 
-        # build aria2 command
-        $aria2 = "& '$(Get-HelperPath -Helper Aria2)' $($options -join ' ')"
+        # build curl command
+        $curl = "& '$(Get-HelperPath -Helper curl)' $($options -join ' ')"
 
-        # handle aria2 console output
-        Write-Host 'Starting download with aria2...'
+        # handle curl console output
+        Write-Host 'Starting download with curl...'
 
         # Set console output encoding to UTF8 for non-ASCII characters printing
         $oriConsoleEncoding = [Console]::OutputEncoding
         [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding
 
-        Invoke-Command ([scriptblock]::Create($aria2)) | ForEach-Object {
+        Invoke-Command ([scriptblock]::Create($curl)) | ForEach-Object {
             # Skip blank lines
             if ([String]::IsNullOrWhiteSpace($_)) { return }
 
@@ -450,37 +333,14 @@ function Invoke-CachedAria2Download ($app, $version, $manifest, $architecture, $
 
             Write-Host "`rDownload: $_$blank" -ForegroundColor $color -NoNewline:$noNewLine
         }
-        Write-Host ''
 
-        if ($lastexitcode -gt 0) {
-            if (get_config ARIA2-FALLBACK-DISABLED) {
-                error "Download failed! (Error $lastexitcode) $(aria_exit_code $lastexitcode)"
-                error $urlstxt_content
-                error $aria2
-                abort $(new_issue_msg $app $bucket 'download via aria2 failed')
-            }
-
-            warn "Download failed! (Error $lastexitcode) $(aria_exit_code $lastexitcode)"
-            warn $urlstxt_content
-            warn $aria2
-
-            Write-Host 'Fallback to default downloader...'
-
-            try {
-                foreach ($url in $urls) {
-                    Invoke-CachedDownload $app $version $url "$($data.$url.target)" $cookies $use_cache
-                }
-            } catch {
-                Write-Host $_ -ForegroundColor DarkRed
-                error "URL $url is not valid"
-                abort $(new_issue_msg $app $bucket 'download failed')
-            }
+        # ignore error code 33, which happens when curl tries to rusume a fully downloaded file
+        if ($lastexitcode -gt 0 -and $lastexitcode -ne 33) {
+            throw "Download failed! (Error $lastexitcode)"
         }
 
-        # remove aria2 input file when done
-        if (Test-Path $urlstxt, "$($data.$url.source).aria2*") {
+        if (Test-Path $urlstxt) {
             Remove-Item $urlstxt -Force -ErrorAction SilentlyContinue
-            Remove-Item "$($data.$url.source).aria2*" -Force -ErrorAction SilentlyContinue
         }
 
         # Revert console encoding
@@ -504,7 +364,6 @@ function Invoke-CachedAria2Download ($app, $version, $manifest, $architecture, $
                 if (Test-Path $data.$url.source) {
                     # rm cached file
                     Remove-Item $data.$url.source -Force -ErrorAction SilentlyContinue
-                    Remove-Item "$($data.$url.source).aria2*" -Force -ErrorAction SilentlyContinue
                 }
                 if ($url.Contains('sourceforge.net')) {
                     Write-Host -f yellow 'SourceForge.net is known for causing hash validation fails. Please try again before opening a ticket.'

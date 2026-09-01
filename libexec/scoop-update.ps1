@@ -304,33 +304,7 @@ function update($app, $global, $quiet = $false, $independent, $suggested, $use_c
     # Workaround for https://github.com/ScoopInstaller/Scoop/issues/2220 until install is refactored
     # Remove and replace whole region after proper fix
     Write-Host 'Downloading new version'
-    if (Test-Aria2Enabled) {
-        Invoke-CachedAria2Download $app $version $manifest $architecture $cachedir $manifest.cookie $true $check_hash
-    } else {
-        $urls = script:url $manifest $architecture
-
-        foreach ($url in $urls) {
-            Invoke-CachedDownload $app $version $url $null $manifest.cookie $true
-
-            if ($check_hash) {
-                $manifest_hash = hash_for_url $manifest $url $architecture
-                $source = cache_path $app $version $url
-                $ok, $err = check_hash $source $manifest_hash $(show_app $app $bucket)
-
-                if (!$ok) {
-                    error $err
-                    if (Test-Path $source) {
-                        # rm cached file
-                        Remove-Item -Force $source
-                    }
-                    if ($url.Contains('sourceforge.net')) {
-                        Write-Host -f yellow 'SourceForge.net is known for causing hash validation fails. Please try again before opening a ticket.'
-                    }
-                    abort $(new_issue_msg $app $bucket 'hash check failed')
-                }
-            }
-        }
-    }
+    Invoke-CachedCurlDownload $app $version $manifest $architecture $cachedir $manifest.cookie $true $curr_check_hash
     # There is no need to check hash again while installing
     $check_hash = $false
     # endregion Workaround
@@ -446,11 +420,6 @@ if (-not ($apps -or $all)) {
             }
         }
 
-        if ($outdated -and ((Test-Aria2Enabled) -and (get_config 'aria2-warning-enabled' $true))) {
-            warn "Scoop uses 'aria2c' for multi-connection downloads."
-            warn "Should it cause issues, run 'scoop config aria2-enabled false' to disable it."
-            warn "To disable this warning, run 'scoop config aria2-warning-enabled false'."
-        }
         if ($outdated.Length -gt 1) {
             Write-Host -f DarkCyan "Updating $($outdated.Length) outdated apps:"
         } elseif ($outdated.Length -eq 0) {
