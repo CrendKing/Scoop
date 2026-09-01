@@ -351,45 +351,9 @@ function update_app($app, $global, $force = $false, $quiet = $false, $independen
     # Workaround for https://github.com/ScoopInstaller/Scoop/issues/2220 until install is refactored
     # Remove and replace whole region after proper fix
     Write-Host 'Downloading new version'
-    if (Test-Aria2Enabled) {
-        if (!(Invoke-CachedAria2Download $app $version $manifest $architecture $cachedir $manifest.cookie $use_cache $check_hash)) {
-            $failed[$app_key] = 'download failed'
-            return
-        }
-    } else {
-        $urls = script:url $manifest $architecture
-
-        foreach ($url in $urls) {
-            try {
-                Invoke-CachedDownload $app $version $url $null $manifest.cookie $use_cache
-            } catch {
-                Write-Host -f darkred $_
-                error "URL $url is not valid"
-                error $(new_issue_msg $app $bucket 'download failed')
-                $failed[$app_key] = 'download failed'
-                return
-            }
-
-            if ($check_hash) {
-                $manifest_hash = hash_for_url $manifest $url $architecture
-                $source = cache_path $app $version $url
-                $ok, $err = check_hash $source $manifest_hash $(show_app $app $bucket)
-
-                if (!$ok) {
-                    error $err
-                    if (Test-Path $source) {
-                        # rm cached file
-                        Remove-Item -Force $source
-                    }
-                    if ($url.Contains('sourceforge.net')) {
-                        Write-Host -f yellow 'SourceForge.net is known for causing hash validation fails. Please try again before opening a ticket.'
-                    }
-                    error $(new_issue_msg $app $bucket 'hash check failed')
-                    $failed[$app_key] = 'hash check failed'
-                    return
-                }
-            }
-        }
+    if (!(Invoke-CachedCurlDownload $app $version $manifest $architecture $cachedir $manifest.cookie $use_cache $check_hash)) {
+        $failed[$app_key] = 'download failed'
+        return
     }
     # There is no need to check hash again while installing
     $check_hash = $false
