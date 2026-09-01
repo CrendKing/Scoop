@@ -127,41 +127,6 @@
 #       When set to $true, Scoop will use `SCOOP_PATH` environment variable to store apps' `PATH`s.
 #       When set to arbitrary non-empty string, Scoop will use that string as the environment variable name instead.
 #       This is useful when you want to isolate Scoop from the system `PATH`.
-#
-# ARIA2 configuration
-# -------------------
-#
-# aria2-enabled: $true|$false
-#       Aria2c will be used for downloading of artifacts.
-#       (Default is $true)
-#
-# aria2-warning-enabled: $true|$false
-#       Disable Aria2c warning which is shown while downloading.
-#       (Default is $true)
-#
-# aria2-fallback-enabled: $true|$false
-#       Automatically falls back to the default downloader when Aria2c download fails.
-#       (Default is $true)
-#
-# aria2-retry-wait: 2
-#       Number of seconds to wait between retries.
-#       See: 'https://aria2.github.io/manual/en/html/aria2c.html#cmdoption-retry-wait'
-#
-# aria2-split: 5
-#       Number of connections used for download.
-#       See: 'https://aria2.github.io/manual/en/html/aria2c.html#cmdoption-s'
-#
-# aria2-max-connection-per-server: 5
-#       The maximum number of connections to one server for each download.
-#       See: 'https://aria2.github.io/manual/en/html/aria2c.html#cmdoption-x'
-#
-# aria2-min-split-size: 5M
-#       Downloaded files will be split by this configured size and downloaded using multiple connections.
-#       See: 'https://aria2.github.io/manual/en/html/aria2c.html#cmdoption-k'
-#
-# aria2-options:
-#       Array of additional aria2 options.
-#       See: 'https://aria2.github.io/manual/en/html/aria2c.html#options'
 
 param($name, $value)
 
