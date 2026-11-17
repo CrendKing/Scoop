@@ -49,7 +49,17 @@ function cleanup($app, $global, $verbose, $cache) {
             $dir = versiondir $app $version $global
             # unlink all potential old link before doing recursive Remove-Item
             unlink_persist_data (installed_manifest $app $version $global) $dir
-            Remove-Item $dir -ErrorAction Stop -Recurse -Force
+
+            while ($True) {
+                try {
+                    Remove-Item $dir -ErrorAction Stop -Recurse -Force
+                    break
+                } catch {
+                    Write-Host
+                    Write-Error "$_"
+                    [Console]::ReadKey($true) | Out-Null
+                }
+            }
         }
         $leftVersions = Get-ChildItem $appDir
         if ($leftVersions.Length -eq 1 -and $leftVersions.Name -eq 'current' -and $leftVersions.LinkType) {
